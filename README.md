@@ -15,6 +15,10 @@ More about resolver versions can be found in [link](https://doc.rust-lang.org/ca
 #### Add utils library as dependency
 cargo add -p <package> --path utils
 
+#### Add logging crate as dependency
+cargo add -p <package> --path log
+cargo add -p <package> --path env_logger
+
 ## AOC
 ### Input files
 Input files are put under the input folder, but never added to git.

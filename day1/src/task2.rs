@@ -1,7 +1,24 @@
-use utils::{InputType, get_input_path};
+use utils::{InputType, get_input_path, read_lines};
+
+use crate::common::Safe;
+
+fn run_example() {
+    let path = get_input_path(1, 1, InputType::Example, None);
+    let lines = read_lines(path).unwrap();
+
+    let mut safe = Safe::new(true);
+    let password = safe.find_password(lines);
+
+    assert_eq!(password, 6);
+}
 
 pub fn run_task() {
-    let file = get_input_path(1, 2, InputType::Regular, None);
-    //let diffs = run_task_with_file(file);
-    //println!("Result: {diffs}");
+    run_example();
+
+    let path = get_input_path(1, 1, InputType::Regular, None);
+    let lines = read_lines(path).unwrap();
+
+    let mut safe = Safe::new(true);
+    let password = safe.find_password(lines);
+    println!("Password: {password}");
 }
