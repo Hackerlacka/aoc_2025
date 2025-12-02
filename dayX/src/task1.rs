@@ -1,4 +1,4 @@
-use utils::{get_input_path, InputType};
+use utils::{InputType, get_input_path};
 
 pub fn run_task() {
     let file = get_input_path(1, 1, InputType::Regular, None);

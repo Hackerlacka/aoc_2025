@@ -16,9 +16,9 @@ More about resolver versions can be found in [link](https://doc.rust-lang.org/ca
 `cargo add -p <package> --path utils`
 
 #### Add logging crate as dependency
-`cargo add -p <package> --path log`
+`cargo add -p <package> log`
 
-`cargo add -p <package> --path env_logger`
+`cargo add -p <package> env_logger`
 
 ## AOC
 ### Input files
