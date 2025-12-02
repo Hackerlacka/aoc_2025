@@ -3,8 +3,9 @@ mod task1;
 mod task2;
 
 fn main() {
+    
     env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
+        .filter_level(log::LevelFilter::Debug)
         .init();
 
     task1::run_task();

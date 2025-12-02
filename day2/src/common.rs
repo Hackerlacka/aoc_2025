@@ -2,6 +2,24 @@ use anyhow::{Context, Ok, Result};
 use regex::Regex;
 use std::{ops::Range, path::PathBuf};
 
+fn is_sequence(full: &str, part: &str) -> bool {
+    if full.len() % part.len() != 0 {
+        return false;
+    }
+
+    let iterations = full.len() / part.len() - 1;
+    for i in 0..iterations {
+        let start = (i + 1) * part.len();
+        let end = start + part.len();
+        let other_part = &full[start..end];
+        if part != other_part {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 fn get_invalid_ids(range: Range<u64>, advanced: bool) -> Vec<u64> {
     let mut invalid_ids = Vec::new();
 
@@ -10,7 +28,7 @@ fn get_invalid_ids(range: Range<u64>, advanced: bool) -> Vec<u64> {
         let len = number_str.len();
 
         if !advanced {
-            if len % 2 == 1 {
+            if len % 2 != 0 {
                 continue;
             }
 
@@ -23,13 +41,13 @@ fn get_invalid_ids(range: Range<u64>, advanced: bool) -> Vec<u64> {
 
         // Try slice sizes where len % slice_size == 0
         for slice_size in 1..(len / 2 + 1) {
-            if len % slice_size == 1 {
+            if len % slice_size != 0 {
                 continue;
             }
 
             let slice = &number_str[0..slice_size];
-            // TODO: Can this be verified without allocating memory with repeat()?
-            if slice.repeat(len / slice_size) == number_str {
+            //if slice.repeat(len / slice_size) == number_str { // Less efficient, but clean
+            if is_sequence(&number_str, slice) {
                 invalid_ids.push(number);
                 break;
             }
@@ -74,4 +92,18 @@ pub fn run_task_on_file(path: PathBuf, advanced: bool) -> u64 {
         .for_each(|range| invalid_ids.append(&mut get_invalid_ids(range, advanced)));
 
     invalid_ids.into_iter().sum()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_sequence() {
+        assert!(is_sequence("1212121212", "12"));
+        assert!(!is_sequence("12121212123", "12"));
+        assert!(is_sequence("12341234", "1234"));
+        assert!(!is_sequence("12341234", "123"));
+        assert!(!is_sequence("2121212124", "2121"));
+    }
 }
