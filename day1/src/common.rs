@@ -1,4 +1,4 @@
-use anyhow::{Error, Ok, anyhow};
+use anyhow::{Error, Ok, anyhow, bail};
 use log::debug;
 
 #[derive(Debug)]
@@ -12,17 +12,17 @@ impl TryFrom<String> for Rotation {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         if value.len() < 2 {
-            return Err(anyhow!("Line is too short!"));
+            bail!("Line is too short!");
         }
 
         let direction = &value[0..1];
         let clicks = value[1..].parse::<i16>()?;
 
-        return match direction {
+        match direction {
             "L" => Ok(Self::Left(clicks)),
             "R" => Ok(Self::Right(clicks)),
-            c => Err(anyhow!("Invalid first char: {c}")),
-        };
+            c => bail!("Invalid first char: {c}"),
+        }
     }
 }
 
@@ -39,7 +39,7 @@ impl Safe {
     pub fn new(special_method: bool) -> Self {
         Safe {
             dial: Self::DEFAULT_DIAL,
-            special_method: special_method,
+            special_method,
         }
     }
 
@@ -59,14 +59,12 @@ impl Safe {
         self.dial = (self.dial + clicks).rem_euclid(Self::DIAL_CNT);
 
         if self.special_method {
-            return zero_passed_cnt.try_into().unwrap();
+            zero_passed_cnt.try_into().unwrap()
+        } else if self.dial == 0 {
+            1
+        } else {
+            0
         }
-
-        if self.dial == 0 {
-            return 1;
-        }
-
-        return 0;
     }
 
     pub fn find_password(&mut self, lines: Vec<String>) -> u32 {
@@ -75,7 +73,7 @@ impl Safe {
             .map(|line| line.try_into().unwrap())
             .collect();
 
-        debug!("Rotations: {:?}", rotations);
+        debug!("Rotations: {rotations:?}");
 
         let mut zeroes = 0;
         for rotation in rotations {

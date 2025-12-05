@@ -1,14 +1,15 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
+use log::debug;
 use regex::Regex;
-use std::ops::Range;
+use std::ops::RangeInclusive;
 
 pub struct Database {
-    fresh_id_ranges: Vec<Range<u64>>,
+    fresh_id_ranges: Vec<RangeInclusive<u64>>,
     ids: Vec<u64>,
 }
 
 impl Database {
-    fn parse_range_incl(range_str: &str) -> Result<Range<u64>> {
+    fn parse_range_incl(range_str: &str) -> Result<RangeInclusive<u64>> {
         let re = Regex::new(r"(\d+)-(\d+)")?;
 
         let caps = re
@@ -25,12 +26,11 @@ impl Database {
             .as_str()
             .parse::<u64>()?;
 
-        Ok(low..high + 1)
+        Ok(low..=high)
     }
 
     fn parse_id(line: &str) -> Result<u64> {
-        line.parse()
-            .map_err(|err| Err(anyhow!("Failed to parse line: {err}")).unwrap())
+        line.parse().context("Failed to parse line")
     }
 
     pub fn new(lines: Vec<String>) -> Self {
@@ -70,23 +70,25 @@ impl Database {
         fresh_ids
     }
 
-    fn fuse_range(r1: &Range<u64>, r2: &Range<u64>) -> Option<Range<u64>> {
-        // This looks ugly!
-        if r1.start >= r2.start && r1.start <= r2.end {
-            return Some(r2.start..(r1.end.max(r2.end)));
-        } else if r1.end >= r2.start && r1.end <= r2.end {
-            return Some((r1.start.min(r2.start))..r2.end);
-        } else if r2.start >= r1.start && r2.start <= r1.end {
-            return Some(r1.start..(r2.end.max(r1.end)));
-        } else if r2.end >= r1.start && r2.end <= r1.end {
-            return Some((r2.start.min(r1.start))..r1.end);
+    fn fuse_range(
+        r1: &RangeInclusive<u64>,
+        r2: &RangeInclusive<u64>,
+    ) -> Option<RangeInclusive<u64>> {
+        if (r2.contains(r1.end()) && r1.contains(r2.start())) // r1_s r2_s/r1_e r2_e
+            || (r1.contains(r2.end()) && r2.contains(r1.start())) // r2_s r1_s/r2_e r1_e
+            || (r1.contains(r2.start()) && r1.contains(r2.end())) // r2 contained inside r1
+            || (r2.contains(r1.start()) && r2.contains(r1.end())) // r1 contained inside r2
+            || (r1.end() + 1 == *r2.start() || r2.end() + 1 == *r1.start())
+        // r1r2 or r2r1
+        {
+            Some(*r1.start().min(r2.start())..=*r1.end().max(r2.end()))
+        } else {
+            None
         }
-
-        None
     }
 
     pub fn find_fresh_ids_tot(&self) -> u64 {
-        let mut ranges: Vec<Range<u64>> = Vec::new();
+        let mut ranges: Vec<RangeInclusive<u64>> = Vec::new();
         let mut fresh_id_ranges = self.fresh_id_ranges.clone();
 
         'outer: while let Some(range) = fresh_id_ranges.pop() {
@@ -105,6 +107,10 @@ impl Database {
             ranges.push(range);
         }
 
-        ranges.iter().map(|range| range.end - range.start).sum()
+        debug!("ranges: {ranges:?}");
+        ranges
+            .iter()
+            .map(|range| 1 + range.end() - range.start())
+            .sum()
     }
 }
