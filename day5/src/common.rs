@@ -38,15 +38,14 @@ impl Database {
         let mut ids = Vec::new();
 
         let mut iter = lines.iter();
-
-        while let Some(line) = iter.next() {
+        for line in iter.by_ref() {
             if line.is_empty() {
                 break;
             }
             fresh_id_ranges.push(Self::parse_range_incl(line).unwrap());
         }
 
-        while let Some(line) = iter.next() {
+        for line in iter {
             ids.push(Self::parse_id(line).unwrap());
         }
 
@@ -71,11 +70,41 @@ impl Database {
         fresh_ids
     }
 
+    fn fuse_range(r1: &Range<u64>, r2: &Range<u64>) -> Option<Range<u64>> {
+        // This looks ugly!
+        if r1.start >= r2.start && r1.start <= r2.end {
+            return Some(r2.start..(r1.end.max(r2.end)));
+        } else if r1.end >= r2.start && r1.end <= r2.end {
+            return Some((r1.start.min(r2.start))..r2.end);
+        } else if r2.start >= r1.start && r2.start <= r1.end {
+            return Some(r1.start..(r2.end.max(r1.end)));
+        } else if r2.end >= r1.start && r2.end <= r1.end {
+            return Some((r2.start.min(r1.start))..r1.end);
+        }
+
+        None
+    }
+
     pub fn find_fresh_ids_tot(&self) -> u64 {
-        let ranges: Vec<Range<u64>> = Vec::new();
+        let mut ranges: Vec<Range<u64>> = Vec::new();
+        let mut fresh_id_ranges = self.fresh_id_ranges.clone();
 
-        for range in self.fresh_id_ranges.iter() {}
+        'outer: while let Some(range) = fresh_id_ranges.pop() {
+            // Look for overlap against other ranges
+            for i in 0..fresh_id_ranges.len() {
+                let tmp_range = fresh_id_ranges.get(i).unwrap();
+                if let Some(new_range) = Self::fuse_range(&range, tmp_range) {
+                    // Overlap found
+                    fresh_id_ranges.remove(i);
+                    fresh_id_ranges.push(new_range);
+                    continue 'outer;
+                }
+            }
 
-        todo!()
+            // No overlap found
+            ranges.push(range);
+        }
+
+        ranges.iter().map(|range| range.end - range.start).sum()
     }
 }

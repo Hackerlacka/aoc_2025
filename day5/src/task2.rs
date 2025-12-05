@@ -21,9 +21,8 @@ fn run_example() {
 pub fn run_task() {
     run_example();
 
-    // let path = get_input_path(5, 1, InputType::Regular, None);
-    // let fresh_ids = run_task_on_file(&path);
-
-    // let fresh_ids_count = fresh_ids.len();
-    // info!("Fresh ids count: {fresh_ids_count}");
+    let path = get_input_path(5, 1, InputType::Regular, None);
+    let fresh_ids_tot = run_task_on_file(&path);
+    info!("Fresh ids tot count: {fresh_ids_tot}");
+    assert_eq!(fresh_ids_tot, 343329651880509);
 }

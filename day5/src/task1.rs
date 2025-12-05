@@ -29,4 +29,5 @@ pub fn run_task() {
 
     let fresh_ids_count = fresh_ids.len();
     info!("Fresh ids count: {fresh_ids_count}");
+    assert_eq!(fresh_ids_count, 789);
 }
