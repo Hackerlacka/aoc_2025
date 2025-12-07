@@ -21,8 +21,8 @@ More about resolver versions can be found in [link](https://doc.rust-lang.org/ca
 `cargo add -p <package> env_logger`
 
 #### All
-cargo add -p day6 log env_logger anyhow
-cargo add -p day6 --path utils
+`cargo add -p dayX log env_logger anyhow`
+`cargo add -p dayX --path utils`
 
 ## AOC
 ### Input files
