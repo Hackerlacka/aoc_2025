@@ -1,0 +1,11 @@
+[package]
+name = "day8"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+env_logger = "0.11.8"
+log = "0.4.29"
+regex = "1.12.2"
+utils = { version = "0.1.0", path = "../utils" }
