@@ -1,4 +1,4 @@
-use log::{debug, info};
+use log::info;
 use utils::{InputType, get_input_path};
 
 use crate::common::Floor;
