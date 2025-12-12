@@ -20,5 +20,6 @@ pub fn run_task() {
 
     let device_map = DeviceMap::new(lines);
     let paths_you_to_out = device_map.find_paths_from_x_to_out("you", None);
+    assert_eq!(paths_you_to_out, 497);
     info!("Paths you -> out: {paths_you_to_out}");
 }
