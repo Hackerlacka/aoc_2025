@@ -1,9 +1,5 @@
-use log::{debug, info};
-use std::{
-    clone,
-    collections::HashMap,
-    hash::{DefaultHasher, Hash, Hasher},
-};
+use log::info;
+use std::{collections::HashMap, hash::Hash};
 
 #[derive(Debug, PartialEq, Hash)]
 struct Device {
@@ -29,35 +25,7 @@ pub struct DeviceMap {
 }
 
 impl DeviceMap {
-    fn compress(devices: &mut HashMap<String, Device>) {
-        // TODO: Loses the path information :D
-        let not_optimize = ["you", "svr", "dac", "fft"];
-        while let Some(single_destination_identifier) = devices
-            .iter()
-            .find(|(identifier, device)| {
-                !not_optimize.contains(&identifier.as_str()) && device.connections.len() == 1
-            })
-            .map(|(identifier, _)| identifier.to_owned())
-        {
-            let device = devices.remove(&single_destination_identifier).unwrap();
-            devices
-                .iter_mut()
-                .filter(|(_, d)| d.connections.contains(&device.identifier))
-                .for_each(|(_, d)| {
-                    d.connections = d
-                        .connections
-                        .iter()
-                        .filter(|s| s != &&device.identifier)
-                        .cloned()
-                        .collect();
-
-                    let next_dest = device.connections.first().unwrap().clone();
-                    if !d.connections.contains(&next_dest) {
-                        d.connections.push(next_dest);
-                    }
-                });
-        }
-    }
+    const OUT_DEVICE: &str = "out";
 
     pub fn new(lines: Vec<String>) -> Self {
         let mut devices: HashMap<String, Device> = lines
@@ -67,105 +35,169 @@ impl DeviceMap {
                 (device.identifier.clone(), device)
             })
             .collect();
-        // let len_before = devices.len();
-        // Self::compress(&mut devices);
-        // let len_after: usize = devices.len();
-        // info!(
-        //     "Removed/compressed: {}/{}",
-        //     len_before - len_after,
-        //     len_before
-        // );
-        //info!("Devices: {devices:?}");
+
+        // Create an "out" device for convenience
+        devices.insert(
+            Self::OUT_DEVICE.to_owned(),
+            Device {
+                identifier: Self::OUT_DEVICE.to_owned(),
+                connections: vec![],
+            },
+        );
+
         DeviceMap { devices }
     }
 
-    pub fn find_paths_from_x_to_out(&self, x: &str, must_have: Option<Vec<&str>>) -> usize {
-        // Never visit the same node twice, in one path?
-        // Avoid loops that never lead to out
-        // Should be no loops that can actually go to out? Because then there would be infinite combinations right?
-        let mut devices_to_check = vec![self.devices.get(x).unwrap()];
-        //let mut device_entering_paths: HashMap<String, Vec<Vec<&str>>> = HashMap::new();
-        let mut device_entering_paths: HashMap<String, Vec<Vec<&str>>> = self
-            .devices
-            .keys()
-            .map(|identifier| (identifier.clone(), Vec::new()))
-            .collect();
-        while let Some(device) = devices_to_check.pop() {
-            // let mut hasher = DefaultHasher::new();
-            // devices_to_check.hash(&mut hasher);
-            // info!("Checking {}, {:x}", device.identifier, hasher.finish());
+    /// Checks which must haves are present in paths and combines them to a string like "dac,fft"
+    fn must_haves_present_as_str(
+        path: &Vec<&Device>,
+        must_have_devices: &Vec<&Device>,
+    ) -> Option<String> {
+        path.iter()
+            .filter(|device| must_have_devices.contains(device))
+            .map(|device| device.identifier.to_owned())
+            .reduce(|acc, e| acc + "," + &e)
+    }
 
-            //info!("Devices to check: {}", devices_to_check.len());
-            let entering_paths = device_entering_paths.remove(&device.identifier).unwrap();
-
-            for device_next in device.connections.iter() {
-                // Stop if next node is out or self
-                // TODO: Remove or part again?
-                if device_next == "out" || device_next == &device.identifier {
-                    // TODO: Could also be solved by adding a "out" device to the device map
-                    continue;
-                }
-
-                let next_device_entering_path = device_entering_paths.get_mut(device_next).unwrap();
-
-                let mut will_visit_next = false;
-                if entering_paths.is_empty() {
-                    next_device_entering_path.push(vec![&device.identifier]);
-                    will_visit_next = true;
-                } else {
-                    for mut path in entering_paths.iter().cloned() {
-                        // Protect against loops
-                        if path.contains(&device.identifier.as_str()) {
-                            continue;
-                        }
-
-                        path.push(&device.identifier);
-                        if next_device_entering_path.contains(&path) {
-                            continue;
-                        }
-
-                        next_device_entering_path.push(path);
-                        will_visit_next = true;
-                    }
-                }
-
-                if will_visit_next {
-                    debug!("Adding {device_next} to devices to check");
-                    let next_dev = self.devices.get(device_next).unwrap();
-                    if !devices_to_check.contains(&next_dev) {
-                        devices_to_check.push(next_dev);
-                    }
-
-                    // TODO: Revert to just devices_to_check.push(next_dev);?
-                }
-            }
-
-            // Re-insert device entering paths
-            device_entering_paths.insert(device.identifier.clone(), entering_paths);
+    /// Save data about how many solutions can be found after a device given which "must haves" are present
+    /// in the path this far
+    fn register_device_data(
+        device: &Device,
+        path: &Vec<&Device>,
+        solutions_increase: usize,
+        device_data: &mut HashMap<String, HashMap<Option<String>, usize>>,
+        must_have_devices: &Vec<&Device>,
+    ) {
+        let data = device_data.get_mut(&device.identifier).unwrap();
+        let must_haves_present = Self::must_haves_present_as_str(path, must_have_devices);
+        if data.contains_key(&must_haves_present) {
+            return;
         }
 
-        // info!("Device entering paths:");
-        // for device_entering_path in device_entering_paths.iter() {
-        //     info!("{device_entering_path:?}")
-        // }
+        data.insert(must_haves_present, solutions_increase);
+    }
 
-        self.devices
+    /// Check if next device needs to be visited or not depending on if there is
+    /// information about how many solutions there are from that node and forward given
+    /// which "must haves" are present in the path this far
+    fn need_to_check_device(
+        next_device: &Device,
+        path: &Vec<&Device>,
+        must_have_devices: &Vec<&Device>,
+        device_data: &mut HashMap<String, HashMap<Option<String>, usize>>,
+        solutions: &mut usize,
+    ) -> bool {
+        let data_next = device_data.get_mut(&next_device.identifier).unwrap();
+        let must_haves_present = Self::must_haves_present_as_str(path, must_have_devices);
+        if let Some(next_solutions) = data_next.get(&must_haves_present) {
+            *solutions += *next_solutions;
+            return false;
+        }
+
+        true
+    }
+
+    fn try_device<'a>(
+        device: &'a Device,
+        path: &mut Vec<&'a Device>,
+        devices: &'a HashMap<String, Device>,
+        must_have_devices: &Option<Vec<&Device>>,
+        device_data: &mut HashMap<String, HashMap<Option<String>, usize>>,
+        solutions: &mut usize,
+    ) {
+        path.push(device);
+        let solutions_before = *solutions;
+
+        device
+            .connections
             .iter()
-            .filter(|(_, device)| device.connections.contains(&"out".to_owned()))
-            .map(|(identifier, _)| {
-                device_entering_paths
-                    .remove(identifier)
-                    .unwrap_or_default()
-                    .iter()
-                    .filter(|a| {
-                        // TODO: Why do we have to clone here?
-                        if let Some(must) = must_have.clone() {
-                            return must.iter().all(|m| a.contains(m));
+            .map(|next_device_identifier| &devices[next_device_identifier])
+            .for_each(|next_device| {
+                if next_device.identifier == Self::OUT_DEVICE {
+                    // Found a potential solution
+                    if let Some(must_have) = must_have_devices {
+                        if must_have
+                            .iter()
+                            .all(|must_device_identifier| path.contains(must_device_identifier))
+                        {
+                            *solutions += 1;
                         }
-                        true
-                    })
-                    .count()
-            })
-            .sum()
+                    } else {
+                        *solutions += 1;
+                    }
+                    return;
+                } else if path.contains(&next_device) {
+                    info!("Rejected loop");
+                    return;
+                }
+
+                if must_have_devices.is_none()
+                    || Self::need_to_check_device(
+                        next_device,
+                        path,
+                        must_have_devices.as_ref().unwrap(),
+                        device_data,
+                        solutions,
+                    )
+                {
+                    Self::try_device(
+                        next_device,
+                        path,
+                        devices,
+                        must_have_devices,
+                        device_data,
+                        solutions,
+                    );
+                }
+            });
+
+        if must_have_devices.is_some() {
+            let solutions_increase = *solutions - solutions_before;
+            Self::register_device_data(
+                device,
+                path,
+                solutions_increase,
+                device_data,
+                must_have_devices.as_ref().unwrap(),
+            );
+        }
+
+        _ = path.pop();
+    }
+
+    fn create_device_data(&self) -> HashMap<String, HashMap<Option<String>, usize>> {
+        self.devices
+            .keys()
+            .map(|device_identifier| (device_identifier.clone(), HashMap::new()))
+            .collect()
+    }
+
+    fn get_must_have_devices(&self, must_have: Option<Vec<&str>>) -> Option<Vec<&Device>> {
+        must_have.map(|must_have_devices_indentifiers| {
+            must_have_devices_indentifiers
+                .iter()
+                .map(|must_have_device_identifier| {
+                    &self.devices[must_have_device_identifier.to_owned()]
+                })
+                .collect()
+        })
+    }
+
+    pub fn find_paths_from_x_to_out(&self, x: &str, must_have: Option<Vec<&str>>) -> usize {
+        let start_device = &self.devices[x];
+        let must_have_devices = self.get_must_have_devices(must_have);
+        let mut device_data = self.create_device_data();
+        let mut path = Vec::new();
+        let mut solutions = 0;
+        Self::try_device(
+            start_device,
+            &mut path,
+            &self.devices,
+            &must_have_devices,
+            &mut device_data,
+            &mut solutions,
+        );
+
+        solutions
     }
 }

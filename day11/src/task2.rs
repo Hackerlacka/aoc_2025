@@ -36,4 +36,5 @@ pub fn run_task() {
     let device_map = DeviceMap::new(lines);
     let paths_svr_to_out = device_map.find_paths_from_x_to_out("svr", Some(vec!["dac", "fft"]));
     info!("Paths svr -> out: {paths_svr_to_out}");
+    assert_eq!(paths_svr_to_out, 358564784931864);
 }
