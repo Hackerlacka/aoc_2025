@@ -9,7 +9,7 @@ fn run_example() {
     let fewest_button_presses = machines.find_fewest_button_presses();
     assert_eq!(fewest_button_presses, vec![2, 3, 2]);
     let sum: usize = fewest_button_presses.iter().sum();
-    assert_eq!(sum, 7)
+    assert_eq!(sum, 7);
 }
 
 pub fn run_task() {
@@ -21,4 +21,5 @@ pub fn run_task() {
     let fewest_button_presses = machines.find_fewest_button_presses();
     let sum: usize = fewest_button_presses.iter().sum();
     info!("Sum: {sum}");
+    assert_eq!(sum, 459);
 }

@@ -78,8 +78,9 @@ impl Machine {
         indicator_lights: &mut Vec<bool>,
         wanted_indicator_lights: &Vec<bool>,
     ) -> bool {
-        // Press button
+        // Try all available buttons
         for i in 0..button_wiring.len() {
+            // Press button
             let button = button_wiring.remove(i);
             for j in button.iter().copied() {
                 indicator_lights[j] = !indicator_lights[j];
@@ -90,23 +91,15 @@ impl Machine {
                 return true;
             }
 
-            if *buttons_pressed == allowed_button_presses {
-                // Reset and try next button
-                *buttons_pressed -= 1;
-                for j in button.iter().copied() {
-                    indicator_lights[j] = !indicator_lights[j];
-                }
-                button_wiring.insert(i, button);
-                continue;
-            }
-
-            if Self::press_button(
-                buttons_pressed,
-                allowed_button_presses,
-                button_wiring,
-                indicator_lights,
-                wanted_indicator_lights,
-            ) {
+            if *buttons_pressed < allowed_button_presses
+                && Self::press_button(
+                    buttons_pressed,
+                    allowed_button_presses,
+                    button_wiring,
+                    indicator_lights,
+                    wanted_indicator_lights,
+                )
+            {
                 return true;
             }
 
