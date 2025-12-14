@@ -15,10 +15,11 @@ fn run_example() {
 pub fn run_task() {
     run_example();
 
-    // let path = get_input_path(10, 1, InputType::Regular, None);
-    // let lines = utils::read_lines(path).unwrap();
-    // let machines = Machines::new(lines);
-    // let fewest_button_presses_joltage = machines.find_fewest_button_presses_joltage();
-    // let sum: usize = fewest_button_presses_joltage.iter().sum();
-    // info!("Sum: {sum}");
+    let path = get_input_path(10, 1, InputType::Regular, None);
+    let lines = utils::read_lines(path).unwrap();
+    let machines = Machines::new(lines);
+    let fewest_button_presses_joltage = machines.find_fewest_button_presses_joltage();
+    let sum: usize = fewest_button_presses_joltage.iter().sum();
+    assert_eq!(sum, 18687);
+    info!("Sum: {sum}");
 }
