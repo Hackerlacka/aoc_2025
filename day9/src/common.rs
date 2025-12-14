@@ -2,10 +2,7 @@ use anyhow::{Result, bail};
 use log::{debug, info};
 use regex::Regex;
 use std::cmp::{max, min};
-use std::{
-    collections::HashMap,
-    ops::{Add, RangeInclusive},
-};
+use std::ops::{Add, RangeInclusive};
 
 #[derive(Debug, Clone)]
 struct Tile {
@@ -40,12 +37,19 @@ impl Tile {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
+enum Vertex {
+    No,
+    YesPlus,
+    YesMinus,
+}
+
+#[derive(PartialEq, Eq, Debug)]
 enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
+    Up(Vertex),
+    Down(Vertex),
+    Left(Vertex),
+    Right(Vertex),
 }
 
 #[derive(Debug)]
@@ -74,6 +78,29 @@ impl Edge {
         }
     }
 
+    fn get_vertex(&self, x: &isize, y: &isize) -> Vertex {
+        match self {
+            Edge::X(y_range, _) => {
+                if y == y_range.start() {
+                    Vertex::YesPlus
+                } else if y == y_range.end() {
+                    Vertex::YesMinus
+                } else {
+                    Vertex::No
+                }
+            }
+            Edge::Y(x_range, _) => {
+                if x == x_range.start() {
+                    Vertex::YesPlus
+                } else if x == x_range.end() {
+                    Vertex::YesMinus
+                } else {
+                    Vertex::No
+                }
+            }
+        }
+    }
+
     fn would_intersect(&self, x: &isize, y: &isize) -> Option<Direction> {
         // x and y should not be on the line at this point
         match self {
@@ -83,9 +110,9 @@ impl Edge {
                     return None;
                 }
                 let direction = if x > ex {
-                    Direction::Left
+                    Direction::Left(Self::get_vertex(self, x, y))
                 } else {
-                    Direction::Right
+                    Direction::Right(Self::get_vertex(self, x, y))
                 };
                 Some(direction)
             }
@@ -95,9 +122,9 @@ impl Edge {
                     return None;
                 }
                 let direction = if y > ey {
-                    Direction::Up
+                    Direction::Up(Self::get_vertex(self, x, y))
                 } else {
-                    Direction::Down
+                    Direction::Down(Self::get_vertex(self, x, y))
                 };
                 Some(direction)
             }
@@ -147,25 +174,54 @@ impl Floor {
         }
 
         // Check how many lines we cross in each direction
-        let mut direction_counter: HashMap<Direction, u64> = HashMap::new();
+        let mut directions: Vec<Direction> = Vec::new();
         self.edges.iter().for_each(|edge| {
             if let Some(direction) = edge.would_intersect(&x, &y) {
-                match direction_counter.get_mut(&direction) {
-                    Some(counter) => *counter += 1,
-                    None => _ = direction_counter.insert(direction, 1),
-                }
+                directions.push(direction);
             }
         });
 
-        // TODO: There seem to be a problem at e.g. 7x7 in the example, where counters for up is 3 and right is 2
-        info!("x={x}, y={y}");
-        info!("direction_counter: {direction_counter:?}");
-        if direction_counter.values().any(|v| v % 2 == 1) {
-            return true;
-        }
+        // If corners are hit, and they go in different directions count them as 2, else count them as 1
+        let direction_variants = [
+            Direction::Up(Vertex::No),
+            Direction::Down(Vertex::No),
+            Direction::Left(Vertex::No),
+            Direction::Right(Vertex::No),
+        ];
+        for direction_variant in direction_variants.iter() {
+            let mut non_vertexes_sum = 0;
+            let mut plus_vertexes_sum = 0;
+            let mut minus_vertexes_sum = 0;
 
-        if direction_counter.values().any(|v| *v != 0 && v % 2 == 0) {
-            return false;
+            // Add to sums
+            for direction in directions.iter().filter(|direction| {
+                std::mem::discriminant(direction_variant) == std::mem::discriminant(*direction)
+            }) {
+                let vertex = match direction {
+                    Direction::Up(vertex) => vertex,
+                    Direction::Down(vertex) => vertex,
+                    Direction::Left(vertex) => vertex,
+                    Direction::Right(vertex) => vertex,
+                };
+
+                match vertex {
+                    Vertex::No => non_vertexes_sum += 1,
+                    Vertex::YesPlus => plus_vertexes_sum += 1,
+                    Vertex::YesMinus => minus_vertexes_sum += 1,
+                }
+            }
+
+            let min_sum = min(plus_vertexes_sum, minus_vertexes_sum);
+            plus_vertexes_sum -= min_sum;
+            minus_vertexes_sum -= min_sum;
+
+            non_vertexes_sum += min_sum + plus_vertexes_sum + minus_vertexes_sum;
+
+            if non_vertexes_sum % 2 == 1 {
+                return true;
+            } else if non_vertexes_sum != 0 && non_vertexes_sum % 2 == 0 {
+                return false;
+            }
         }
 
         panic!("Point does not cross any line!")
